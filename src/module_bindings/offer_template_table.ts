@@ -18,5 +18,6 @@ export default __t.row({
   kind: __t.string(),
   amount: __t.f64(),
   appliesTo: __t.string().name("applies_to"),
+  forModel: __t.string().name("for_model"),
   maxTerm: __t.u32().name("max_term"),
 });

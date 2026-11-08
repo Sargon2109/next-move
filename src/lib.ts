@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Timestamp } from 'spacetimedb';
-import type { Profile, Quote } from './module_bindings/types';
+import type { Profile, Quote, Room } from './module_bindings/types';
 
 export type {
   Activity,
@@ -51,13 +51,36 @@ export function vehicleName(p: Profile): string {
   return `${p.vehicleYear} ${p.vehicleModel} ${p.vehicleTrim}`;
 }
 
-export function situationOf(p: Profile) {
+// Mirrors DRIVING_FACTORS in spacetimedb/src/finance.ts.
+export const DRIVING_OPTIONS = [
+  { key: 'less', label: 'Less', factor: 0.5 },
+  { key: 'same', label: 'Same', factor: 1 },
+  { key: 'more', label: 'More', factor: 1.5 },
+];
+export function drivingFactorOf(driving: string): number {
+  return DRIVING_OPTIONS.find(o => o.key === driving)?.factor ?? 1;
+}
+
+// The profile as it stands in this session, after the customer's life changes (mirrors applySituation on the server).
+export function withSituation(p: Profile, room: Room): Profile {
+  const next = { ...p, monthlyBudget: room.budget, needsSpace: room.needsSpace };
+  if (room.needsSpace && !p.upgradeAddsSpace && p.roomyModel) {
+    next.upgradeModel = p.roomyModel;
+    next.upgradePrice = p.roomyPrice;
+    next.upgradeAddsSpace = true;
+  }
+  return next;
+}
+
+export function situationOf(p: Profile, driving = 'same') {
+  const factor = drivingFactorOf(driving);
   const monthsLeft = Math.max(0, p.termMonths - p.monthsElapsed);
   const equity = p.marketValue - p.balance;
   let milesOver = 0;
   let milesUnder = 0;
   if (p.contractType === 'lease' && p.monthsElapsed > 0) {
-    const projected = Math.round((p.currentMiles / p.monthsElapsed) * p.termMonths);
+    const perMonth = p.currentMiles / p.monthsElapsed;
+    const projected = Math.round(p.currentMiles + perMonth * monthsLeft * factor);
     const allowed = Math.round((p.milesPerYear * p.termMonths) / 12);
     milesOver = Math.max(0, projected - allowed);
     milesUnder = Math.max(0, allowed - projected);

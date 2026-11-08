@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { reducers, tables } from './module_bindings';
-import { ActivityFeed, Controls, ExplanationPanel, Header, OptionCard, SituationStrip, nextStepCopy } from './components';
+import { ActivityFeed, Controls, ExplanationPanel, Header, LifePanel, OptionCard, SituationStrip, nextStepCopy } from './components';
 import {
   byStableOrder,
   goTo,
   money,
   situationOf,
   vehicleName,
+  withSituation,
   type Activity,
   type Explanation,
   type Offer,
@@ -215,6 +216,7 @@ function CustomerRoom({
   onReopen: () => void;
 }) {
   const roomQuotes = useMemo(() => [...quotes].sort(byStableOrder), [quotes]);
+  const live = useMemo(() => withSituation(profile, room), [profile, room]);
   const pendingOffers = offers.filter(o => o.status === 'pending');
   const chosen = roomQuotes.find(q => q.key === room.chosenOption);
   const hasSpecialist = room.specialist !== undefined && room.specialistName !== '';
@@ -257,7 +259,7 @@ function CustomerRoom({
           </section>
         )}
 
-        <SituationStrip profile={profile} />
+        <SituationStrip profile={live} driving={room.driving} />
 
         <div className="grid-main">
           <div className="options">
@@ -265,7 +267,7 @@ function CustomerRoom({
               <OptionCard
                 key={q.key}
                 quote={q}
-                profile={profile}
+                profile={live}
                 focused={room.focusedOption === q.key}
                 chosen={room.chosenOption === q.key}
                 onFocus={() => onFocus(q.key)}
@@ -314,6 +316,7 @@ function CustomerRoom({
               )}
             </section>
 
+            <LifePanel room={room} profile={profile} title="What's changed in your life?" hint="Watch the best fit move" />
             <Controls room={room} title="Try different numbers" hint="Updates instantly" />
             <ExplanationPanel room={room} explanation={explanation} />
             {hasSpecialist && <ActivityFeed items={activity} />}

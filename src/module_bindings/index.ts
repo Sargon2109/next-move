@@ -45,6 +45,7 @@ import SendOfferReducer from "./send_offer_reducer";
 import SetLlmConfigReducer from "./set_llm_config_reducer";
 import StartSessionReducer from "./start_session_reducer";
 import UpdateInputsReducer from "./update_inputs_reducer";
+import UpdateSituationReducer from "./update_situation_reducer";
 
 // Import all procedure arg schemas
 import * as ExplainRoomProcedure from "./explain_room_procedure";
@@ -182,6 +183,7 @@ const reducersSchema = __reducers(
   __reducerSchema("set_llm_config", SetLlmConfigReducer),
   __reducerSchema("start_session", StartSessionReducer),
   __reducerSchema("update_inputs", UpdateInputsReducer),
+  __reducerSchema("update_situation", UpdateSituationReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

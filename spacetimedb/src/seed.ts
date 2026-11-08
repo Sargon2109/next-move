@@ -27,6 +27,8 @@ export const PROFILES = [
     upgradeModel: 'Grand Highlander Hybrid XLE',
     upgradePrice: 48900,
     upgradeAddsSpace: true,
+    roomyModel: 'Grand Highlander Hybrid XLE',
+    roomyPrice: 48900,
     newApr: 6.49,
     usedApr: 7.49,
     replacementLease: 459,
@@ -57,6 +59,8 @@ export const PROFILES = [
     upgradeModel: 'Camry Hybrid SE',
     upgradePrice: 33400,
     upgradeAddsSpace: false,
+    roomyModel: 'RAV4 Hybrid XLE',
+    roomyPrice: 36500,
     newApr: 5.99,
     usedApr: 6.99,
     replacementLease: 0,
@@ -87,6 +91,8 @@ export const PROFILES = [
     upgradeModel: 'Tacoma SR5 (new generation)',
     upgradePrice: 39800,
     upgradeAddsSpace: false,
+    roomyModel: 'Sienna LE',
+    roomyPrice: 41000,
     newApr: 6.49,
     usedApr: 6.99,
     replacementLease: 489,
@@ -95,16 +101,16 @@ export const PROFILES = [
 
 // Offers a specialist is allowed to send to each customer.
 export const OFFER_TEMPLATES = [
-  { id: 1, profileId: 1, title: '$1,000 loyalty cash', detail: 'For returning lessees who stay with Toyota', kind: 'loyalty_cash', amount: 1000, appliesTo: 'upgrade', maxTerm: 0 },
-  { id: 2, profileId: 1, title: 'Prepaid miles at $0.15/mi', detail: 'Buy your extra miles now instead of $0.25 at turn-in', kind: 'prepay_miles', amount: 0.15, appliesTo: 'return', maxTerm: 0 },
-  { id: 3, profileId: 1, title: '2.9% APR on Grand Highlander Hybrid', detail: 'Special rate on terms up to 60 months', kind: 'apr', amount: 2.9, appliesTo: 'upgrade_buy', maxTerm: 60 },
-  { id: 4, profileId: 1, title: 'Disposition fee waived', detail: 'Waived when your next car is a Toyota', kind: 'waive_disposition', amount: 350, appliesTo: 'return', maxTerm: 0 },
+  { id: 1, profileId: 1, title: '$1,000 loyalty cash', detail: 'For returning lessees who stay with Toyota', kind: 'loyalty_cash', amount: 1000, appliesTo: 'upgrade', forModel: '', maxTerm: 0 },
+  { id: 2, profileId: 1, title: 'Prepaid miles at $0.15/mi', detail: 'Buy your extra miles now instead of $0.25 at turn-in', kind: 'prepay_miles', amount: 0.15, appliesTo: 'return', forModel: '', maxTerm: 0 },
+  { id: 3, profileId: 1, title: '2.9% APR on Grand Highlander Hybrid', detail: 'Special rate on terms up to 60 months', kind: 'apr', amount: 2.9, appliesTo: 'upgrade_buy', forModel: 'Grand Highlander Hybrid XLE', maxTerm: 60 },
+  { id: 4, profileId: 1, title: 'Disposition fee waived', detail: 'Waived when your next car is a Toyota', kind: 'waive_disposition', amount: 350, appliesTo: 'return', forModel: '', maxTerm: 0 },
 
-  { id: 5, profileId: 2, title: 'Refinance at 5.49% APR', detail: 'Your new credit tier qualifies for a better rate (up to 60 months)', kind: 'apr', amount: 5.49, appliesTo: 'refinance', maxTerm: 60 },
-  { id: 6, profileId: 2, title: '$750 loyalty cash', detail: 'Toward any new Toyota', kind: 'loyalty_cash', amount: 750, appliesTo: 'upgrade', maxTerm: 0 },
-  { id: 7, profileId: 2, title: '1.9% APR on Camry Hybrid', detail: 'Special rate on terms up to 60 months', kind: 'apr', amount: 1.9, appliesTo: 'upgrade_buy', maxTerm: 60 },
+  { id: 5, profileId: 2, title: 'Refinance at 5.49% APR', detail: 'Your new credit tier qualifies for a better rate (up to 60 months)', kind: 'apr', amount: 5.49, appliesTo: 'refinance', forModel: '', maxTerm: 60 },
+  { id: 6, profileId: 2, title: '$750 loyalty cash', detail: 'Toward any new Toyota', kind: 'loyalty_cash', amount: 750, appliesTo: 'upgrade', forModel: '', maxTerm: 0 },
+  { id: 7, profileId: 2, title: '1.9% APR on Camry Hybrid', detail: 'Special rate on terms up to 60 months', kind: 'apr', amount: 1.9, appliesTo: 'upgrade_buy', forModel: 'Camry Hybrid SE', maxTerm: 60 },
 
-  { id: 8, profileId: 3, title: '4.9% buyout financing', detail: 'Loyalty rate to buy your leased Tacoma (up to 60 months)', kind: 'apr', amount: 4.9, appliesTo: 'buyout', maxTerm: 60 },
-  { id: 9, profileId: 3, title: '$1,500 loyalty cash', detail: 'Toward a new Tacoma', kind: 'loyalty_cash', amount: 1500, appliesTo: 'upgrade', maxTerm: 0 },
-  { id: 10, profileId: 3, title: 'Disposition fee waived', detail: 'Waived when your next car is a Toyota', kind: 'waive_disposition', amount: 350, appliesTo: 'return', maxTerm: 0 },
+  { id: 8, profileId: 3, title: '4.9% buyout financing', detail: 'Loyalty rate to buy your leased Tacoma (up to 60 months)', kind: 'apr', amount: 4.9, appliesTo: 'buyout', forModel: '', maxTerm: 60 },
+  { id: 9, profileId: 3, title: '$1,500 loyalty cash', detail: 'Toward a new Tacoma', kind: 'loyalty_cash', amount: 1500, appliesTo: 'upgrade', forModel: 'Tacoma SR5 (new generation)', maxTerm: 0 },
+  { id: 10, profileId: 3, title: 'Disposition fee waived', detail: 'Waived when your next car is a Toyota', kind: 'waive_disposition', amount: 350, appliesTo: 'return', forModel: '', maxTerm: 0 },
 ];

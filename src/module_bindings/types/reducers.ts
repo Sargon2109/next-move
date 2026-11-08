@@ -17,6 +17,7 @@ import SendOfferReducer from "../send_offer_reducer";
 import SetLlmConfigReducer from "../set_llm_config_reducer";
 import StartSessionReducer from "../start_session_reducer";
 import UpdateInputsReducer from "../update_inputs_reducer";
+import UpdateSituationReducer from "../update_situation_reducer";
 
 export type ChooseOptionParams = __Infer<typeof ChooseOptionReducer>;
 export type FocusOptionParams = __Infer<typeof FocusOptionReducer>;
@@ -29,4 +30,5 @@ export type SendOfferParams = __Infer<typeof SendOfferReducer>;
 export type SetLlmConfigParams = __Infer<typeof SetLlmConfigReducer>;
 export type StartSessionParams = __Infer<typeof StartSessionReducer>;
 export type UpdateInputsParams = __Infer<typeof UpdateInputsReducer>;
+export type UpdateSituationParams = __Infer<typeof UpdateSituationReducer>;
 

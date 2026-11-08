@@ -14,6 +14,14 @@ const USED_DEPRECIATION_PER_YEAR = 0.12;
 const NEW_VALUE_RETAINED_36 = 0.62;
 const REPLACEMENT_DUE_AT_SIGNING = 1500;
 const EXTRA_PAYMENT = 100;
+const NEW_LEASE_MILES_PER_YEAR = 12000;
+const NEW_LEASE_OVERAGE_RATE = 0.25;
+
+// How much the customer expects to drive from now on, relative to their pace so far.
+export const DRIVING_FACTORS: Record<string, number> = { less: 0.5, same: 1, more: 1.5 };
+export function drivingFactor(driving: string): number {
+  return DRIVING_FACTORS[driving] ?? 1;
+}
 
 export type Profile = {
   id: number;
@@ -37,6 +45,8 @@ export type Profile = {
   upgradeModel: string;
   upgradePrice: number;
   upgradeAddsSpace: boolean;
+  roomyModel: string; // what we suggest instead when the customer needs more room
+  roomyPrice: number;
   newApr: number;
   usedApr: number;
   replacementLease: number;
@@ -47,12 +57,31 @@ export type AcceptedOffer = {
   amount: number;
   appliesTo: string; // option key, or 'upgrade' for both upgrade options
   maxTerm: number; // 0 = no limit
+  forModel: string; // '' = any model; otherwise only when this is the upgrade model
 };
 
 export type Inputs = {
   downPayment: number;
   financeTerm: number;
+  drivingFactor: number;
 };
+
+// What the customer says changed in their life. Overrides the profile defaults.
+export type LifeSituation = {
+  budget: number;
+  needsSpace: boolean;
+};
+
+export function applySituation<P extends Profile>(p: P, life: LifeSituation): P {
+  const next = { ...p, monthlyBudget: life.budget, needsSpace: life.needsSpace };
+  // If their usual upgrade has no extra room, suggest the roomier model instead.
+  if (life.needsSpace && !p.upgradeAddsSpace && p.roomyModel) {
+    next.upgradeModel = p.roomyModel;
+    next.upgradePrice = p.roomyPrice;
+    next.upgradeAddsSpace = true;
+  }
+  return next;
+}
 
 export type Quote = {
   key: string;
@@ -145,15 +174,19 @@ export type Situation = {
   milesOver: number;
   milesUnder: number;
   overageFee: number;
+  milesPerYearPace: number; // expected driving from now on
 };
 
-export function situation(p: Profile): Situation {
+export function situation(p: Profile, driving = 1): Situation {
   const monthsLeft = Math.max(0, p.termMonths - p.monthsElapsed);
   const equityToday = p.marketValue - p.balance;
+  const milesPerMonth = p.monthsElapsed > 0 ? p.currentMiles / p.monthsElapsed : 0;
+  const milesPerYearPace = Math.round(milesPerMonth * 12 * driving);
   if (p.contractType !== 'lease') {
-    return { monthsLeft, equityToday, projectedMiles: 0, allowedMiles: 0, milesOver: 0, milesUnder: 0, overageFee: 0 };
+    return { monthsLeft, equityToday, projectedMiles: 0, allowedMiles: 0, milesOver: 0, milesUnder: 0, overageFee: 0, milesPerYearPace };
   }
-  const projectedMiles = p.monthsElapsed > 0 ? Math.round((p.currentMiles / p.monthsElapsed) * p.termMonths) : p.currentMiles;
+  // Miles driven so far, plus the remaining months at the expected pace.
+  const projectedMiles = Math.round(p.currentMiles + milesPerMonth * monthsLeft * driving);
   const allowedMiles = Math.round((p.milesPerYear * p.termMonths) / 12);
   const milesOver = Math.max(0, projectedMiles - allowedMiles);
   const milesUnder = Math.max(0, allowedMiles - projectedMiles);
@@ -165,6 +198,7 @@ export function situation(p: Profile): Situation {
     milesOver,
     milesUnder,
     overageFee: milesOver * p.overageRate,
+    milesPerYearPace,
   };
 }
 
@@ -284,10 +318,19 @@ function upgradeLease(p: Profile, s: Situation, offers: AcceptedOffer[], inputs:
   const base = (cap - residual) / 36 + (cap + residual) * LEASE_MONEY_FACTOR;
   const monthly = Math.max(0, base * (1 + SALES_TAX));
 
+  // At the customer's expected pace, how far past the new lease's mileage limit will they go?
+  const milesOver = Math.max(0, Math.round((s.milesPerYearPace - NEW_LEASE_MILES_PER_YEAR) * 3));
+  const mileageCost = milesOver * NEW_LEASE_OVERAGE_RATE;
+
   const pros = ['Lowest payment for a brand-new car', 'Full factory warranty'];
   if (s.equityToday > 0) pros.push(`Rolls your ${money(s.equityToday)} of equity into the new car`);
   if (p.needsSpace && p.upgradeAddsSpace) pros.unshift('Adds the room your family needs');
   if (loyalty > 0) pros.push(`${money(loyalty)} loyalty cash applied`);
+
+  const cons =
+    milesOver > 0
+      ? [`At your pace you'd drive about ${milesOver.toLocaleString('en-US')} miles over: about ${money(mileageCost)} at turn-in`, 'You will not own it at the end']
+      : ['You will not own it at the end', 'Mileage limits again'];
 
   return finish(p, {
     key: 'upgrade_lease',
@@ -296,14 +339,15 @@ function upgradeLease(p: Profile, s: Situation, offers: AcceptedOffer[], inputs:
     monthly,
     monthlyLater: 0,
     dueNow: inputs.downPayment + monthly,
-    cashOut36: inputs.downPayment + monthly * 36,
+    cashOut36: inputs.downPayment + monthly * 36 + mileageCost,
     equity36: 0,
     fitsLife: !p.needsSpace || p.upgradeAddsSpace,
     pros,
-    cons: ['You will not own it at the end', 'Mileage limits again'],
+    cons,
     assumptions: [
       `Price ${money(p.upgradePrice)}, ${(LEASE_RESIDUAL_36 * 100).toFixed(0)}% residual, money factor ${LEASE_MONEY_FACTOR}`,
       `Trade-in equity ${money(s.equityToday)} goes toward the new lease`,
+      `You drive about ${s.milesPerYearPace.toLocaleString('en-US')} miles a year; miles over ${NEW_LEASE_MILES_PER_YEAR.toLocaleString('en-US')}/yr cost $${NEW_LEASE_OVERAGE_RATE.toFixed(2)} each`,
     ],
     nextStep: loyalty > 0 ? 'offer' : 'follow_up',
     nextStepLabel: 'A specialist confirms inventory and locks your price',
@@ -364,9 +408,12 @@ function keepLoan(p: Profile, s: Situation): Quote {
     dueNow: 0,
     cashOut36: p.monthlyPayment * paid,
     equity36: value36 - bal36,
-    fitsLife: true,
+    fitsLife: !p.needsSpace,
     pros: ['No paperwork', 'Nothing changes'],
-    cons: [`You are paying ${p.apr.toFixed(2)}% from before your credit improved`],
+    cons: [
+      ...(p.needsSpace ? ['Same car, so no extra room'] : []),
+      `You are paying ${p.apr.toFixed(2)}% from before your credit improved`,
+    ],
     assumptions: [`Balance today ${money(p.balance)}`],
     nextStep: 'self_service',
     nextStepLabel: 'Turn on autopay and keep going',
@@ -388,6 +435,7 @@ function refinance(p: Profile, s: Situation, offers: AcceptedOffer[], inputs: In
   const pros = [`New rate ${apr.toFixed(2)}% instead of ${p.apr.toFixed(2)}%`];
   if (savings > 0) pros.unshift(`Lowers your payment by ${money(savings)}/mo`);
   const cons: string[] = [];
+  if (p.needsSpace) cons.push('Same car, so no extra room');
   if (extraMonths > 0) cons.push(`Adds ${extraMonths} months to your loan`);
   else cons.push('Requires a quick credit check');
 
@@ -400,7 +448,7 @@ function refinance(p: Profile, s: Situation, offers: AcceptedOffer[], inputs: In
     dueNow: inputs.downPayment,
     cashOut36: inputs.downPayment + pmt * paid,
     equity36: value36 - bal36,
-    fitsLife: true,
+    fitsLife: !p.needsSpace,
     pros,
     cons,
     assumptions: [`Refinancing your ${money(p.balance)} balance`, inputs.downPayment > 0 ? `${money(inputs.downPayment)} paid down first` : 'No cash paid down'],
@@ -427,9 +475,9 @@ function payExtra(p: Profile, s: Situation): Quote {
     dueNow: 0,
     cashOut36: pmt * paid,
     equity36: value36 - bal36,
-    fitsLife: true,
+    fitsLife: !p.needsSpace,
     pros: [`Saves about ${money(normalInterest - extraInterest)} in interest`, 'Own your car sooner'],
-    cons: ['Raises your monthly payment'],
+    cons: [...(p.needsSpace ? ['Same car, so no extra room'] : []), 'Raises your monthly payment'],
     assumptions: [`Extra ${money(EXTRA_PAYMENT)} goes straight to principal`],
     nextStep: 'self_service',
     nextStepLabel: 'Set up an extra principal payment online',
@@ -439,8 +487,10 @@ function payExtra(p: Profile, s: Situation): Quote {
 
 // ---------- main entry ----------
 
-export function buildQuotes(p: Profile, inputs: Inputs, offers: AcceptedOffer[]): RankedQuote[] {
-  const s = situation(p);
+export function buildQuotes(p: Profile, inputs: Inputs, allOffers: AcceptedOffer[]): RankedQuote[] {
+  const s = situation(p, inputs.drivingFactor);
+  // Model-specific offers only count when that model is the one being suggested.
+  const offers = allOffers.filter(o => !o.forModel || o.forModel === p.upgradeModel);
   const quotes: Quote[] =
     p.contractType === 'lease'
       ? [returnAtEnd(p, s, offers), buyOutNow(p, s, offers, inputs), upgradeLease(p, s, offers, inputs), upgradeBuy(p, s, offers, inputs)]

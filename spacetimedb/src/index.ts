@@ -1,6 +1,16 @@
 import { schema, table, t, SenderError, type InferSchema, type ReducerCtx } from 'spacetimedb/server';
 import { ScheduleAt } from 'spacetimedb';
-import { buildQuotes, money, rulesExplanation, situation, HORIZON_MONTHS, type AcceptedOffer } from './finance';
+import {
+  applySituation,
+  buildQuotes,
+  drivingFactor,
+  money,
+  rulesExplanation,
+  situation,
+  DRIVING_FACTORS,
+  HORIZON_MONTHS,
+  type AcceptedOffer,
+} from './finance';
 import { callChat } from './llm';
 import { OFFER_TEMPLATES, PROFILES } from './seed';
 
@@ -36,6 +46,8 @@ const profile = table(
     upgradeModel: t.string(),
     upgradePrice: t.f64(),
     upgradeAddsSpace: t.bool(),
+    roomyModel: t.string(),
+    roomyPrice: t.f64(),
     newApr: t.f64(),
     usedApr: t.f64(),
     replacementLease: t.f64(),
@@ -55,6 +67,10 @@ const room = table(
     status: t.string(), // self_serve | waiting | live | decided
     downPayment: t.f64(),
     financeTerm: t.u32(),
+    // The customer's life situation for this session (starts from the profile, either screen can change it).
+    budget: t.f64(),
+    needsSpace: t.bool(),
+    driving: t.string(), // less | same | more
     focusedOption: t.string(),
     chosenOption: t.string(),
     version: t.u32(),
@@ -116,6 +132,7 @@ const offerTemplate = table(
     kind: t.string(),
     amount: t.f64(),
     appliesTo: t.string(),
+    forModel: t.string(), // '' = any model
     maxTerm: t.u32(),
   }
 );
@@ -131,6 +148,7 @@ const offer = table(
     kind: t.string(),
     amount: t.f64(),
     appliesTo: t.string(),
+    forModel: t.string(),
     maxTerm: t.u32(),
     status: t.string(), // pending | accepted | declined
     sentBy: t.string(),
@@ -228,16 +246,33 @@ function actorFor(ctx: Ctx, r: RoomRow): string {
 function acceptedOffers(ctx: Ctx, roomId: bigint): AcceptedOffer[] {
   return [...ctx.db.offer.roomId.filter(roomId)]
     .filter(o => o.status === 'accepted')
-    .map(o => ({ kind: o.kind, amount: o.amount, appliesTo: o.appliesTo, maxTerm: o.maxTerm }));
+    .map(o => ({ kind: o.kind, amount: o.amount, appliesTo: o.appliesTo, maxTerm: o.maxTerm, forModel: o.forModel }));
 }
+
+// The profile as it stands in this session, after the customer's life changes.
+function livingProfile(ctx: Ctx, r: RoomRow) {
+  return applySituation(getProfile(ctx, r.profileId), { budget: r.budget, needsSpace: r.needsSpace });
+}
+
+const DRIVING_LABELS: Record<string, string> = {
+  less: 'driving less from now on',
+  same: 'driving about the same',
+  more: 'driving more from now on',
+};
 
 // Recalculate every option for a room and refresh the rule-based explanation.
 function recompute(ctx: Ctx, r: RoomRow) {
-  const p = getProfile(ctx, r.profileId);
-  const ranked = buildQuotes(p, { downPayment: r.downPayment, financeTerm: r.financeTerm }, acceptedOffers(ctx, r.id));
+  const p = livingProfile(ctx, r);
+  const inputs = { downPayment: r.downPayment, financeTerm: r.financeTerm, drivingFactor: drivingFactor(r.driving) };
+  const ranked = buildQuotes(p, inputs, acceptedOffers(ctx, r.id));
 
-  for (const old of [...ctx.db.quote.roomId.filter(r.id)]) ctx.db.quote.id.delete(old.id);
+  const oldQuotes = [...ctx.db.quote.roomId.filter(r.id)];
+  const oldBest = oldQuotes.find(q => q.recommended);
+  for (const old of oldQuotes) ctx.db.quote.id.delete(old.id);
   for (const q of ranked) ctx.db.quote.insert({ id: 0n, roomId: r.id, ...q });
+  if (oldBest && ranked[0] && oldBest.title !== ranked[0].title) {
+    log(ctx, r.id, 'system', `New best fit: ${ranked[0].title}`);
+  }
 
   const rulesText = rulesExplanation(p, ranked);
   const existing = ctx.db.explanation.roomId.find(r.id);
@@ -346,6 +381,9 @@ export const startSession = spacetimedb.reducer({ profileId: t.u32() }, (ctx, { 
     status: 'self_serve',
     downPayment: 0,
     financeTerm: 60,
+    budget: p.monthlyBudget,
+    needsSpace: p.needsSpace,
+    driving: 'same',
     focusedOption: '',
     chosenOption: '',
     version: 1,
@@ -383,6 +421,26 @@ export const updateInputs = spacetimedb.reducer(
   }
 );
 
+// "Life changes, plan changes": budget, needing more room, and how much they'll drive.
+// Either screen can change it; every option is recalculated and re-ranked in the same transaction.
+export const updateSituation = spacetimedb.reducer(
+  { roomId: t.u64(), budget: t.f64(), needsSpace: t.bool(), driving: t.string() },
+  (ctx, { roomId, budget, needsSpace, driving }) => {
+    const r = getRoom(ctx, roomId);
+    const b = Math.max(200, Math.min(2000, Math.round(budget)));
+    const d = Object.keys(DRIVING_FACTORS).includes(driving) ? driving : 'same';
+    if (b === r.budget && needsSpace === r.needsSpace && d === r.driving) return;
+
+    const actor = actorFor(ctx, r);
+    const who = actor === 'customer' ? getProfile(ctx, r.profileId).firstName : r.specialistName || 'Specialist';
+    if (needsSpace !== r.needsSpace) log(ctx, r.id, actor, `${who} updated the situation: ${needsSpace ? 'needs more room' : 'current size is fine'}`);
+    if (d !== r.driving) log(ctx, r.id, actor, `${who} updated the situation: ${DRIVING_LABELS[d]}`);
+
+    const next = touch(ctx, r, { budget: b, needsSpace, driving: d }, true);
+    recompute(ctx, next);
+  }
+);
+
 export const focusOption = spacetimedb.reducer({ roomId: t.u64(), key: t.string() }, (ctx, { roomId, key }) => {
   const r = getRoom(ctx, roomId);
   if (r.focusedOption === key) return;
@@ -404,6 +462,7 @@ export const sendOffer = spacetimedb.reducer({ roomId: t.u64(), templateId: t.u3
     kind: tpl.kind,
     amount: tpl.amount,
     appliesTo: tpl.appliesTo,
+    forModel: tpl.forModel,
     maxTerm: tpl.maxTerm,
     status: 'pending',
     sentBy: r.specialistName || 'Specialist',
@@ -480,17 +539,18 @@ export const explainRoom = spacetimedb.procedure({ roomId: t.u64() }, t.unit(), 
   // 1) Read everything we need and mark the explanation as "thinking" so both screens see it.
   const setup = ctx.withTx(tx => {
     const r = getRoom(tx, roomId);
-    const p = getProfile(tx, r.profileId);
+    const p = livingProfile(tx, r);
     const quotes = [...tx.db.quote.roomId.filter(roomId)].sort((a, b) => a.rank - b.rank);
     const offers = [...tx.db.offer.roomId.filter(roomId)].filter(o => o.status === 'accepted').map(o => o.title);
     const config = tx.db.llmConfig.id.find(1);
     const exp = tx.db.explanation.roomId.find(roomId);
     if (exp) tx.db.explanation.roomId.update({ ...exp, status: 'thinking', error: '', updatedAt: tx.timestamp });
-    const s = situation(p);
+    const s = situation(p, drivingFactor(r.driving));
     const data = {
       customer: {
         name: p.firstName,
         lifeEvent: p.lifeEvent,
+        drivingFromNowOn: DRIVING_LABELS[r.driving] ?? DRIVING_LABELS.same,
         needsMoreSpace: p.needsSpace,
         monthlyBudget: p.monthlyBudget,
         vehicle: `${p.vehicleYear} ${p.vehicleModel} ${p.vehicleTrim}`,

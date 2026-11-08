@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useProcedure, useReducer, useSpacetimeDB } from 'spacetimedb/react';
 import { procedures, reducers } from './module_bindings';
 import {
+  DRIVING_OPTIONS,
   TERMS,
   clockTime,
   money,
@@ -47,8 +48,8 @@ export function Header({ subtitle, right }: { subtitle: string; right?: React.Re
 // Where the customer stands today
 // ---------------------------------------------------------------------------
 
-export function SituationStrip({ profile }: { profile: Profile }) {
-  const s = situationOf(profile);
+export function SituationStrip({ profile, driving }: { profile: Profile; driving?: string }) {
+  const s = situationOf(profile, driving);
   const isLease = profile.contractType === 'lease';
   const items: { label: string; value: string; tone?: string }[] = [
     { label: 'Vehicle', value: vehicleName(profile) },
@@ -117,7 +118,8 @@ export function OptionCard({
   chooseLabel?: string;
 }) {
   const over = Math.max(quote.monthly, quote.monthlyLater) - profile.monthlyBudget;
-  const flash = useFlashOnChange(Math.round(quote.monthly));
+  // Flash when the price changes, or when this card becomes (or stops being) the best fit.
+  const flash = useFlashOnChange(`${Math.round(quote.monthly)}|${quote.recommended}|${quote.title}`);
   return (
     <article
       className={`option ${quote.recommended ? 'best' : ''} ${focused ? 'focused' : ''} ${chosen ? 'chosen' : ''} ${flash ? 'flash' : ''}`}
@@ -209,7 +211,7 @@ export function OptionCard({
   );
 }
 
-function useFlashOnChange(value: number): boolean {
+function useFlashOnChange(value: string): boolean {
   const [flash, setFlash] = useState(false);
   const first = useRef(true);
   useEffect(() => {
@@ -302,6 +304,116 @@ export function Controls({ room, title, hint }: { room: Room; title: string; hin
           </button>
         ))}
       </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Life changes, plan changes: budget, room, driving. Both screens can drive it.
+// ---------------------------------------------------------------------------
+
+export function LifePanel({ room, profile, title, hint }: { room: Room; profile: Profile; title: string; hint?: string }) {
+  const update = useReducer(reducers.updateSituation);
+  const [budget, setBudget] = useState(room.budget);
+  const dragging = useRef(false);
+  const lastSent = useRef(0);
+  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLease = profile.contractType === 'lease';
+
+  // Follow changes made by the other screen, unless we are the one dragging.
+  useEffect(() => {
+    if (!dragging.current) setBudget(room.budget);
+  }, [room.budget]);
+
+  const send = (change: { budget?: number; needsSpace?: boolean; driving?: string }) => {
+    void update({
+      roomId: room.id,
+      budget: change.budget ?? budget,
+      needsSpace: change.needsSpace ?? room.needsSpace,
+      driving: change.driving ?? room.driving,
+    }).catch(console.error);
+  };
+
+  const onSlide = (v: number) => {
+    setBudget(v);
+    const now = Date.now();
+    if (pending.current) clearTimeout(pending.current);
+    if (now - lastSent.current > 90) {
+      lastSent.current = now;
+      send({ budget: v });
+    } else {
+      pending.current = setTimeout(() => send({ budget: v }), 90);
+    }
+  };
+
+  return (
+    <section className="panel life">
+      <div className="panel-head">
+        <h4>{title}</h4>
+        {hint && <span className="muted small">{hint}</span>}
+      </div>
+
+      <label className="slider-label">
+        <span>Monthly budget</span>
+        <strong>{money(budget)}/mo</strong>
+      </label>
+      <input
+        type="range"
+        min={300}
+        max={1200}
+        step={10}
+        value={budget}
+        onPointerDown={() => (dragging.current = true)}
+        onPointerUp={() => {
+          dragging.current = false;
+          send({ budget });
+        }}
+        onChange={e => onSlide(Number(e.target.value))}
+        aria-label="Monthly budget"
+      />
+      <div className="slider-scale">
+        <span>$300</span>
+        <span>$1,200</span>
+      </div>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={room.needsSpace}
+        className={`switch-row ${room.needsSpace ? 'on' : ''}`}
+        onClick={() => send({ needsSpace: !room.needsSpace })}
+      >
+        <span className="switch-text">
+          <span className="strong">Need more room</span>
+          <span className="muted small">Growing family, more passengers or cargo</span>
+        </span>
+        <span className="switch" aria-hidden>
+          <i />
+        </span>
+      </button>
+
+      {isLease && (
+        <>
+          <div className="slider-label" style={{ marginTop: 16 }}>
+            <span>Driving from now on</span>
+            <strong>{DRIVING_OPTIONS.find(o => o.key === room.driving)?.label ?? 'Same'}</strong>
+          </div>
+          <div className="segmented three" role="radiogroup" aria-label="Driving from now on">
+            {DRIVING_OPTIONS.map(o => (
+              <button
+                key={o.key}
+                type="button"
+                role="radio"
+                aria-checked={room.driving === o.key}
+                className={room.driving === o.key ? 'on' : ''}
+                onClick={() => send({ driving: o.key })}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </section>
   );
 }

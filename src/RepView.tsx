@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { reducers, tables } from './module_bindings';
-import { ActivityFeed, Controls, ExplanationPanel, Header, OptionCard, SituationStrip } from './components';
-import { byStableOrder, goTo, money, timeAgo, useNow, vehicleName, type OfferTemplate, type Room } from './lib';
+import { ActivityFeed, Controls, ExplanationPanel, Header, LifePanel, OptionCard, SituationStrip } from './components';
+import { byStableOrder, goTo, money, timeAgo, useNow, vehicleName, withSituation, type OfferTemplate, type Room } from './lib';
 
 const NAME_KEY = 'next-move/specialist-name';
 
@@ -41,6 +41,7 @@ export default function RepView() {
   const browsing = rooms.filter(r => r.status === 'self_serve' && !r.specialist).sort((a, b) => Number(b.id - a.id));
   const room = rooms.find(r => r.id === selected);
   const profile = room ? profileOf(room) : undefined;
+  const live = room && profile ? withSituation(profile, room) : undefined;
 
   const join = (r: Room) => {
     try {
@@ -135,7 +136,7 @@ export default function RepView() {
         </nav>
 
         <main className="rep-main">
-          {!room || !profile ? (
+          {!room || !profile || !live ? (
             <div className="empty">
               <h2>Pick a customer from the queue</h2>
               <p className="muted">When you join, you see exactly what they see, live. Move a slider here and it moves on their screen too.</p>
@@ -148,7 +149,7 @@ export default function RepView() {
                     {profile.firstName} <span className="muted">· {vehicleName(profile)}</span>
                   </h1>
                   <p className="muted">
-                    Room {room.code} · {profile.creditTier} · budget {money(profile.monthlyBudget)}/mo
+                    Room {room.code} · {profile.creditTier} · budget {money(live.monthlyBudget)}/mo
                   </p>
                 </div>
                 <span className={`status-pill ${room.status}`}>{statusLabel(room.status)}</span>
@@ -164,7 +165,7 @@ export default function RepView() {
                 {best && <span className="muted"> · Best fit right now: {best.title}</span>}
               </div>
 
-              <SituationStrip profile={profile} />
+              <SituationStrip profile={live} driving={room.driving} />
 
               <div className="grid-main">
                 <div className="options">
@@ -172,7 +173,7 @@ export default function RepView() {
                     <OptionCard
                       key={q.key}
                       quote={q}
-                      profile={profile}
+                      profile={live}
                       focused={room.focusedOption === q.key}
                       focusLabel={`${profile.firstName} is looking at this`}
                       chosen={room.chosenOption === q.key}
@@ -188,11 +189,12 @@ export default function RepView() {
                     <ul className="offer-list">
                       {roomTemplates.map(t => {
                         const state = offerState(t);
+                        const offModel = t.forModel !== '' && t.forModel !== live.upgradeModel;
                         return (
-                          <li key={t.id}>
+                          <li key={t.id} className={offModel ? 'off-model' : ''}>
                             <div>
                               <div className="strong">{t.title}</div>
-                              <div className="muted small">{t.detail}</div>
+                              <div className="muted small">{offModel ? `Only for the ${t.forModel}, not the ${live.upgradeModel}` : t.detail}</div>
                             </div>
                             {state === 'accepted' ? (
                               <span className="chip good">Applied</span>
@@ -201,6 +203,7 @@ export default function RepView() {
                             ) : (
                               <button
                                 className="btn btn-soft small"
+                                disabled={offModel}
                                 onClick={() => void sendOffer({ roomId: room.id, templateId: t.id }).catch(console.error)}
                               >
                                 {state === 'declined' ? 'Resend' : 'Send'}
@@ -211,6 +214,7 @@ export default function RepView() {
                       })}
                     </ul>
                   </section>
+                  <LifePanel room={room} profile={profile} title={`${profile.firstName}'s situation`} hint="Changes on both screens" />
                   <Controls room={room} title="Show a different scenario" hint={`Moves ${profile.firstName}'s screen too`} />
                   <ExplanationPanel room={room} explanation={explanations.find(e => e.roomId === room.id)} />
                   <ActivityFeed items={activity.filter(a => a.roomId === room.id)} />

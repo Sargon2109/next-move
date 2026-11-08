@@ -10,7 +10,7 @@ Next Move takes a customer's vehicle, contract, and life situation and lays out 
 
 ## What it does
 
-- **Personalize:** loads a customer profile, vehicle, and lease or loan (synthetic data for 3 customers).
+- **Personalize:** loads a customer profile, vehicle, and lease or loan (synthetic data for 3 customers). Life changes, plan changes: the customer or specialist can change the budget, flip "need more room", or say they'll drive more or less, and every option re-ranks live on both screens. Needing room swaps in a roomier model (a Sienna for Priya); driving more prices in the mileage overage on a new lease.
 - **Simplify:** every option shows monthly payment, due now, and a 3-year net cost, plus pros, cons, and the assumptions behind the math.
 - **Guide:** options are ranked by life fit, then budget, then 3-year cost. The top pick is labeled with a confidence level, and every option ends in a clear next step (self-service, specialist follow-up, or an applied offer).
 - **Value:** a specialist console with a live queue, "moments that matter" found by a scheduled scan (lease ending soon, positive equity, mileage overage, improved credit), and eligible offers that update the customer's numbers the moment they accept.
@@ -23,7 +23,7 @@ The whole backend is a SpacetimeDB module (`spacetimedb/src`):
 | Piece | SpacetimeDB feature |
 | --- | --- |
 | Customers, rooms, quotes, offers, activity | Tables, subscribed live by both screens |
-| Option math on every slider move | Reducers (`update_inputs`, `respond_offer`) recompute quotes in the same transaction |
+| Option math on every slider move | Reducers (`update_inputs`, `update_situation`, `respond_offer`) recompute and re-rank quotes in the same transaction |
 | Shared screen between customer and specialist | Client subscriptions: every change is pushed to everyone in the room |
 | "Moments that matter" queue | Scheduled reducer (`scan_moments`) runs every 30 seconds |
 | AI explanation | Procedure (`explain_room`) calls an OpenAI-compatible LLM with `ctx.http.fetch`, then writes the result to a table |

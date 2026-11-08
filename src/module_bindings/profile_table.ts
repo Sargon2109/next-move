@@ -36,6 +36,8 @@ export default __t.row({
   upgradeModel: __t.string().name("upgrade_model"),
   upgradePrice: __t.f64().name("upgrade_price"),
   upgradeAddsSpace: __t.bool().name("upgrade_adds_space"),
+  roomyModel: __t.string().name("roomy_model"),
+  roomyPrice: __t.f64().name("roomy_price"),
   newApr: __t.f64().name("new_apr"),
   usedApr: __t.f64().name("used_apr"),
   replacementLease: __t.f64().name("replacement_lease"),
