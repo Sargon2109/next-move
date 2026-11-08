@@ -766,6 +766,201 @@ input[type='range'] {
 .offer-list li.off-model {
   opacity: 0.55;
 }
+
+/* ---------- cost-over-time chart ---------- */
+.main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.cost-chart .chart-sub {
+  margin: -4px 0 12px;
+}
+.line-key {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  flex: none;
+}
+.option h3 .title-key {
+  vertical-align: middle;
+  margin-right: 8px;
+  position: relative;
+  top: -2px;
+}
+.chart-legend {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.legend-best {
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.chart-insight {
+  font-size: 14px;
+  margin: 0 0 10px !important;
+  padding: 9px 12px;
+  background: var(--bg);
+  border-radius: 10px;
+}
+.chart-wrap {
+  position: relative;
+  width: 100%;
+  border-radius: 8px;
+  outline: none;
+}
+.chart-wrap:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 4px;
+}
+.chart-wrap svg {
+  display: block;
+  overflow: visible;
+}
+.cost-chart .grid {
+  stroke: #efece6;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.cost-chart .axis-zero {
+  stroke: #c9c5bd;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.cost-chart .tick {
+  font-size: 11px;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.series-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  transition: d 0.45s ease;
+}
+.end-dot,
+.hover-dot {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.end-dot {
+  transition: cy 0.45s ease;
+}
+.leader {
+  stroke: #c9c5bd;
+  stroke-width: 1;
+}
+.end-label {
+  font-size: 12px;
+}
+.end-value {
+  fill: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.end-name {
+  fill: var(--muted);
+}
+.crosshair {
+  stroke: #b9b5ad;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.cost-chart .crossing {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+}
+.chart-tip {
+  position: absolute;
+  z-index: 2;
+  min-width: 170px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  padding: 8px 10px;
+  font-size: 13px;
+  pointer-events: none;
+}
+.chart-tip.flip {
+  transform: translateX(-100%);
+}
+.tip-head {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.tip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  font-variant-numeric: tabular-nums;
+}
+.tip-row strong {
+  min-width: 72px;
+}
+.chart-foot {
+  margin: 8px 0 0 !important;
+}
+.chart-table {
+  margin-top: 12px;
+  font-size: 13px;
+}
+.chart-table summary {
+  cursor: pointer;
+  color: var(--blue);
+  font-weight: 600;
+}
+.table-scroll {
+  max-height: 320px;
+  overflow: auto;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.chart-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.chart-table th,
+.chart-table td {
+  padding: 6px 10px;
+  text-align: right;
+  border-bottom: 1px solid #f0eee9;
+  white-space: nowrap;
+}
+.chart-table th:first-child {
+  text-align: left;
+}
+.chart-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 600;
+}
 .explain-text {
   font-size: 15px;
   line-height: 1.55;
@@ -1166,6 +1361,9 @@ input[type='range'] {
 @media (max-width: 720px) {
   .options {
     grid-template-columns: 1fr;
+  }
+  .cost-chart .panel-head .muted {
+    display: none;
   }
   .topbar {
     padding: 10px 16px;

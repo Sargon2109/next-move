@@ -33,4 +33,5 @@ export default __t.row({
   nextStep: __t.string().name("next_step"),
   nextStepLabel: __t.string().name("next_step_label"),
   appliedOffers: __t.array(__t.string()).name("applied_offers"),
+  path: __t.array(__t.f64()),
 });

@@ -143,6 +143,7 @@ export const Quote = __t.object("Quote", {
   nextStep: __t.string(),
   nextStepLabel: __t.string(),
   appliedOffers: __t.array(__t.string()),
+  path: __t.array(__t.f64()),
 });
 export type Quote = __Infer<typeof Quote>;
 

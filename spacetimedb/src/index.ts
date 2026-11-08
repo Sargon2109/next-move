@@ -11,7 +11,7 @@ import {
   HORIZON_MONTHS,
   type AcceptedOffer,
 } from './finance';
-import { callChat } from './llm';
+import { callClaude } from './llm';
 import { OFFER_TEMPLATES, PROFILES } from './seed';
 
 // ---------------------------------------------------------------------------
@@ -105,6 +105,7 @@ const quote = table(
     nextStep: t.string(),
     nextStepLabel: t.string(),
     appliedOffers: t.array(t.string()),
+    path: t.array(t.f64()), // net cost so far, months 0..36 (path[36] == net36)
   }
 );
 
@@ -586,10 +587,12 @@ export const explainRoom = spacetimedb.procedure({ roomId: t.u64() }, t.unit(), 
   if (!setup.config || !setup.config.apiKey) {
     result = { ok: false, error: 'No AI key set, showing the rule-based explanation' };
   } else {
-    result = callChat(ctx.http, setup.config.endpoint, setup.config.apiKey, setup.config.model, [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `Customer data (JSON):\n${setup.data}\n\nWrite the explanation now.` },
-    ]);
+    result = callClaude(
+      ctx.http,
+      setup.config,
+      SYSTEM_PROMPT,
+      `Customer data (JSON):\n${setup.data}\n\nWrite the explanation now.`
+    );
   }
 
   // 3) Save the result so both screens update at the same time.

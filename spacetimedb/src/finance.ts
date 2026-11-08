@@ -101,6 +101,9 @@ export type Quote = {
   nextStep: string; // 'self_service' | 'follow_up' | 'offer'
   nextStepLabel: string;
   appliedOffers: string[];
+  // Net cost so far for months 0..36: cash paid minus what the car is worth to you (value minus loan).
+  // path[36] equals net36, so the chart always ends where the card's number is.
+  path: number[];
 };
 
 export type RankedQuote = Quote & {
@@ -136,6 +139,18 @@ function monthsToPayOff(principal: number, aprPct: number, pmt: number): number 
 
 function usedValueAfter(value: number, months: number): number {
   return value * Math.pow(1 - USED_DEPRECIATION_PER_YEAR, months / 12);
+}
+
+// Smooth depreciation that lands on NEW_VALUE_RETAINED_36 at month 36.
+function newValueAfter(price: number, months: number): number {
+  return price * Math.pow(NEW_VALUE_RETAINED_36, months / HORIZON_MONTHS);
+}
+
+// One value per month, 0..HORIZON_MONTHS.
+function byMonth(fn: (month: number) => number): number[] {
+  const out: number[] = [];
+  for (let m = 0; m <= HORIZON_MONTHS; m++) out.push(round2(fn(m)));
+  return out;
 }
 
 export function money(n: number): string {
@@ -224,8 +239,8 @@ function returnAtEnd(p: Profile, s: Situation, offers: AcceptedOffer[]): Quote {
   const mileageCost = s.milesOver * (prepay ? prepay.amount : p.overageRate);
   const disposition = waived ? 0 : DISPOSITION_FEE;
   const laterMonths = Math.max(0, HORIZON_MONTHS - s.monthsLeft);
-  const cashOut =
-    p.monthlyPayment * s.monthsLeft + mileageCost + disposition + REPLACEMENT_DUE_AT_SIGNING + p.replacementLease * laterMonths;
+  const turnIn = mileageCost + disposition + REPLACEMENT_DUE_AT_SIGNING; // all due when the lease ends
+  const cashOut = p.monthlyPayment * s.monthsLeft + turnIn + p.replacementLease * laterMonths;
   const equityAtEnd = usedValueAfter(p.marketValue, s.monthsLeft) - p.residual;
 
   const cons: string[] = [];
@@ -266,6 +281,9 @@ function returnAtEnd(p: Profile, s: Situation, offers: AcceptedOffer[]): Quote {
     nextStep: 'self_service',
     nextStepLabel: 'Schedule your lease-end inspection online',
     appliedOffers: applied,
+    path: byMonth(
+      m => p.monthlyPayment * Math.min(m, s.monthsLeft) + (m >= s.monthsLeft ? turnIn : 0) + p.replacementLease * Math.max(0, m - s.monthsLeft)
+    ),
   });
 }
 
@@ -307,6 +325,10 @@ function buyOutNow(p: Profile, s: Situation, offers: AcceptedOffer[], inputs: In
     nextStep: mine.length > 0 ? 'offer' : 'self_service',
     nextStepLabel: 'Get your payoff quote and apply for buyout financing',
     appliedOffers: mine.map(o => (o.kind === 'apr' ? `${o.amount}% APR offer` : o.kind)),
+    path: byMonth(m => {
+      const k = Math.min(m, inputs.financeTerm);
+      return inputs.downPayment + pmt * k - (usedValueAfter(p.marketValue, m) - balanceAfter(financed, apr, pmt, k));
+    }),
   });
 }
 
@@ -352,6 +374,8 @@ function upgradeLease(p: Profile, s: Situation, offers: AcceptedOffer[], inputs:
     nextStep: loyalty > 0 ? 'offer' : 'follow_up',
     nextStepLabel: 'A specialist confirms inventory and locks your price',
     appliedOffers: loyalty > 0 ? ['Loyalty cash'] : [],
+    // First payment is due at signing; any mileage charge lands at turn-in (month 36).
+    path: byMonth(m => inputs.downPayment + monthly * Math.min(m + 1, 36) + (m >= 36 ? mileageCost : 0)),
   });
 }
 
@@ -392,6 +416,10 @@ function upgradeBuy(p: Profile, s: Situation, offers: AcceptedOffer[], inputs: I
     nextStep: applied.length > 0 ? 'offer' : 'follow_up',
     nextStepLabel: 'A specialist confirms inventory and locks your rate',
     appliedOffers: applied,
+    path: byMonth(m => {
+      const k = Math.min(m, inputs.financeTerm);
+      return inputs.downPayment + pmt * k - (newValueAfter(p.upgradePrice, m) - balanceAfter(financed, apr, pmt, k));
+    }),
   });
 }
 
@@ -418,6 +446,10 @@ function keepLoan(p: Profile, s: Situation): Quote {
     nextStep: 'self_service',
     nextStepLabel: 'Turn on autopay and keep going',
     appliedOffers: [],
+    path: byMonth(m => {
+      const k = Math.min(m, s.monthsLeft);
+      return p.monthlyPayment * k - (usedValueAfter(p.marketValue, m) - balanceAfter(p.balance, p.apr, p.monthlyPayment, k));
+    }),
   });
 }
 
@@ -455,6 +487,10 @@ function refinance(p: Profile, s: Situation, offers: AcceptedOffer[], inputs: In
     nextStep: mine.length > 0 ? 'offer' : 'self_service',
     nextStepLabel: 'Apply to refinance online in about 5 minutes',
     appliedOffers: mine.map(o => `${o.amount}% APR offer`),
+    path: byMonth(m => {
+      const k = Math.min(m, inputs.financeTerm);
+      return inputs.downPayment + pmt * k - (usedValueAfter(p.marketValue, m) - balanceAfter(principal, apr, pmt, k));
+    }),
   });
 }
 
@@ -482,6 +518,10 @@ function payExtra(p: Profile, s: Situation): Quote {
     nextStep: 'self_service',
     nextStepLabel: 'Set up an extra principal payment online',
     appliedOffers: [],
+    path: byMonth(m => {
+      const k = Math.min(m, months);
+      return pmt * k - (usedValueAfter(p.marketValue, m) - balanceAfter(p.balance, p.apr, pmt, k));
+    }),
   });
 }
 

@@ -101,6 +101,7 @@ function Num({ value, className }: { value: number; className?: string }) {
 export function OptionCard({
   quote,
   profile,
+  color,
   focused,
   focusLabel,
   chosen,
@@ -110,6 +111,7 @@ export function OptionCard({
 }: {
   quote: Quote;
   profile: Profile;
+  color?: string; // this option's line color in the cost chart
   focused: boolean;
   focusLabel?: string;
   chosen: boolean;
@@ -140,7 +142,10 @@ export function OptionCard({
           </div>
         )}
       </div>
-      <h3>{quote.title}</h3>
+      <h3>
+        {color && <span className="line-key title-key" style={{ background: color }} aria-hidden />}
+        {quote.title}
+      </h3>
       <p className="option-sub">{quote.subtitle}</p>
 
       <div className="price">

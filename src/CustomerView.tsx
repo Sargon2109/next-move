@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { reducers, tables } from './module_bindings';
 import { ActivityFeed, Controls, ExplanationPanel, Header, LifePanel, OptionCard, SituationStrip, nextStepCopy } from './components';
+import { CostChart, seriesColor } from './CostChart';
 import {
   byStableOrder,
   goTo,
@@ -262,18 +263,22 @@ function CustomerRoom({
         <SituationStrip profile={live} driving={room.driving} />
 
         <div className="grid-main">
-          <div className="options">
-            {roomQuotes.map(q => (
-              <OptionCard
-                key={q.key}
-                quote={q}
-                profile={live}
-                focused={room.focusedOption === q.key}
-                chosen={room.chosenOption === q.key}
-                onFocus={() => onFocus(q.key)}
-                onChoose={() => onChoose(q.key)}
-              />
-            ))}
+          <div className="main-col">
+            <div className="options">
+              {roomQuotes.map((q, i) => (
+                <OptionCard
+                  key={q.key}
+                  quote={q}
+                  profile={live}
+                  color={seriesColor(i)}
+                  focused={room.focusedOption === q.key}
+                  chosen={room.chosenOption === q.key}
+                  onFocus={() => onFocus(q.key)}
+                  onChoose={() => onChoose(q.key)}
+                />
+              ))}
+            </div>
+            <CostChart quotes={roomQuotes} />
           </div>
 
           <aside className="side">

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { reducers, tables } from './module_bindings';
 import { ActivityFeed, Controls, ExplanationPanel, Header, LifePanel, OptionCard, SituationStrip } from './components';
+import { CostChart, seriesColor } from './CostChart';
 import { byStableOrder, goTo, money, timeAgo, useNow, vehicleName, withSituation, type OfferTemplate, type Room } from './lib';
 
 const NAME_KEY = 'next-move/specialist-name';
@@ -168,17 +169,21 @@ export default function RepView() {
               <SituationStrip profile={live} driving={room.driving} />
 
               <div className="grid-main">
-                <div className="options">
-                  {roomQuotes.map(q => (
-                    <OptionCard
-                      key={q.key}
-                      quote={q}
-                      profile={live}
-                      focused={room.focusedOption === q.key}
-                      focusLabel={`${profile.firstName} is looking at this`}
-                      chosen={room.chosenOption === q.key}
-                    />
-                  ))}
+                <div className="main-col">
+                  <div className="options">
+                    {roomQuotes.map((q, i) => (
+                      <OptionCard
+                        key={q.key}
+                        quote={q}
+                        profile={live}
+                        color={seriesColor(i)}
+                        focused={room.focusedOption === q.key}
+                        focusLabel={`${profile.firstName} is looking at this`}
+                        chosen={room.chosenOption === q.key}
+                      />
+                    ))}
+                  </div>
+                  <CostChart quotes={roomQuotes} />
                 </div>
                 <aside className="side">
                   <section className="panel">

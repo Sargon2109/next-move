@@ -11,7 +11,7 @@ Next Move takes a customer's vehicle, contract, and life situation and lays out 
 ## What it does
 
 - **Personalize:** loads a customer profile, vehicle, and lease or loan (synthetic data for 3 customers). Life changes, plan changes: the customer or specialist can change the budget, flip "need more room", or say they'll drive more or less, and every option re-ranks live on both screens. Needing room swaps in a roomier model (a Sienna for Priya); driving more prices in the mileage overage on a new lease.
-- **Simplify:** every option shows monthly payment, due now, and a 3-year net cost, plus pros, cons, and the assumptions behind the math.
+- **Simplify:** every option shows monthly payment, due now, and a 3-year net cost, plus pros, cons, and the assumptions behind the math. A month-by-month chart shows each option's net cost over the 3 years (ending exactly at the card's number) and calls out where two options cross, like "buying your RAV4 becomes cheaper than returning it from month 7 on." Hover or arrow keys for any month; a table view has every value.
 - **Guide:** options are ranked by life fit, then budget, then 3-year cost. The top pick is labeled with a confidence level, and every option ends in a clear next step (self-service, specialist follow-up, or an applied offer).
 - **Value:** a specialist console with a live queue, "moments that matter" found by a scheduled scan (lease ending soon, positive equity, mileage overage, improved credit), and eligible offers that update the customer's numbers the moment they accept.
 - **Responsible AI:** all numbers come from deterministic math in the database. The AI only explains the ranked options in plain English and never generates numbers. If no AI key is set, a rule-based explanation is shown instead.
@@ -26,7 +26,7 @@ The whole backend is a SpacetimeDB module (`spacetimedb/src`):
 | Option math on every slider move | Reducers (`update_inputs`, `update_situation`, `respond_offer`) recompute and re-rank quotes in the same transaction |
 | Shared screen between customer and specialist | Client subscriptions: every change is pushed to everyone in the room |
 | "Moments that matter" queue | Scheduled reducer (`scan_moments`) runs every 30 seconds |
-| AI explanation | Procedure (`explain_room`) calls an OpenAI-compatible LLM with `ctx.http.fetch`, then writes the result to a table |
+| AI explanation | Procedure (`explain_room`) calls Claude with `ctx.http.fetch`, then writes the result to a table |
 | API key | Private table (`llm_config`), never sent to clients |
 
 There is no other server. The React app talks only to SpacetimeDB.
@@ -37,7 +37,7 @@ There is no other server. The React app talks only to SpacetimeDB.
 spacetimedb/src/index.ts     tables, reducers, scheduled scan, AI procedure
 spacetimedb/src/finance.ts   all payment, equity, and ranking math
 spacetimedb/src/seed.ts      synthetic customers and eligible offers
-spacetimedb/src/llm.ts       OpenAI-compatible chat call
+spacetimedb/src/llm.ts       Claude Messages API call
 src/CustomerView.tsx         customer screen
 src/RepView.tsx              specialist console
 src/components.tsx           shared UI (option cards, sliders, explanation)
@@ -65,13 +65,15 @@ If the database name is taken, change `database` in `spacetime.json` and `VITE_S
 
 ### Optional: turn on the AI explanation
 
-Any OpenAI-compatible endpoint works (NVIDIA Nemotron, OpenAI, OpenRouter):
+The explanation is written by Claude (`claude-opus-5-5`). Paste your Anthropic API key at the hidden prompt, so it never lands in your shell history:
 
 ```bash
-spacetime call set_llm_config '"https://integrate.api.nvidia.com/v1/chat/completions"' '"YOUR_API_KEY"' '"MODEL_ID"'
+read -rs "KEY?Anthropic API key: " && echo
+spacetime call next-move-sargon set_llm_config '"https://api.anthropic.com/v1/messages"' "\"$KEY\"" '"claude-opus-5-5"'
+unset KEY
 ```
 
-The first identity to call this becomes the admin. The key lives in a private table.
+(`read -rs "KEY?…"` is zsh; in bash use `read -rsp "Anthropic API key: " KEY`.) The first identity to call this becomes the admin. The key lives in a private table and is never sent to browsers.
 
 ### After changing the backend
 
