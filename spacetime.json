@@ -1,0 +1,5 @@
+{
+  "database": "next-move-sargon",
+  "module-path": "./spacetimedb",
+  "server": "maincloud"
+}
